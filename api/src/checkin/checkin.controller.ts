@@ -1,4 +1,4 @@
-import { Body, Controller, Post } from '@nestjs/common';
+import { Body, Controller, Get, Post } from '@nestjs/common';
 import { CriarCheckinDto } from './dto/criar-checkin.dto';
 import { CheckinService } from './checkin.service';
 
@@ -9,5 +9,10 @@ export class CheckinController {
   @Post()
   criar(@Body() body: CriarCheckinDto) {
     return this.checkinService.criar(body.cpf);
+  }
+
+  @Get()
+  listar() {
+    return this.checkinService.listarDoDia();
   }
 }

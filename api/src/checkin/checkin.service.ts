@@ -34,4 +34,17 @@ export class CheckinService {
     this.fila.push(checkin);
     return checkin;
   }
+
+  listarDoDia(): Checkin[] {
+    const hoje = diaEmSaoPaulo(new Date());
+
+    return this.fila.filter(
+      (item) => diaEmSaoPaulo(new Date(item.chegadaEm)) === hoje,
+    );
+  }
+}
+
+// en-CA devolve a data como aaaa-mm-dd
+function diaEmSaoPaulo(data: Date): string {
+  return data.toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
 }
