@@ -1,19 +1,38 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import { getRepositoryToken } from '@nestjs/typeorm';
 import { CadastroService } from './cadastro.service';
+import { Checkin } from './checkin.entity';
 import { CheckinService } from './checkin.service';
 
 describe('CheckinService', () => {
   let service: CheckinService;
   let cadastro: { buscarPorCpf: jest.Mock };
+  let repo: {
+    create: jest.Mock;
+    save: jest.Mock;
+    find: jest.Mock;
+  };
 
   beforeEach(async () => {
     cadastro = { buscarPorCpf: jest.fn() };
+    repo = {
+      create: jest.fn((dados: Partial<Checkin>) => dados),
+      save: jest.fn((dados: Partial<Checkin>) =>
+        Promise.resolve({
+          id: '1',
+          chegadaEm: new Date(),
+          ...dados,
+        }),
+      ),
+      find: jest.fn(() => Promise.resolve([])),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         CheckinService,
         { provide: CadastroService, useValue: cadastro },
+        { provide: getRepositoryToken(Checkin), useValue: repo },
       ],
     }).compile();
 
@@ -27,11 +46,12 @@ describe('CheckinService', () => {
     });
 
     const checkin = await service.criar('111.111.111-11');
+    repo.find.mockResolvedValue([checkin]);
 
     expect(cadastro.buscarPorCpf).toHaveBeenCalledWith('11111111111');
     expect(checkin.cpf).toBe('11111111111');
     expect(checkin.nome).toBe('Ana Souza');
-    expect(service.listarDoDia()).toEqual([checkin]);
+    await expect(service.listarDoDia()).resolves.toEqual([checkin]);
   });
 
   it('recusa cpf incompleto sem consultar o cadastro', async () => {
@@ -39,6 +59,7 @@ describe('CheckinService', () => {
       BadRequestException,
     );
     expect(cadastro.buscarPorCpf).not.toHaveBeenCalled();
+    expect(repo.save).not.toHaveBeenCalled();
   });
 
   it('nao coloca na fila quando o paciente nao existe', async () => {
@@ -49,6 +70,7 @@ describe('CheckinService', () => {
     await expect(service.criar('99999999999')).rejects.toBeInstanceOf(
       NotFoundException,
     );
-    expect(service.listarDoDia()).toEqual([]);
+    expect(repo.save).not.toHaveBeenCalled();
+    await expect(service.listarDoDia()).resolves.toEqual([]);
   });
 });

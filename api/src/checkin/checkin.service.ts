@@ -1,19 +1,16 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { randomUUID } from 'crypto';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Between, Repository } from 'typeorm';
 import { CadastroService } from './cadastro.service';
-
-export type Checkin = {
-  id: string;
-  cpf: string;
-  nome: string;
-  chegadaEm: string;
-};
+import { Checkin } from './checkin.entity';
 
 @Injectable()
 export class CheckinService {
-  private fila: Checkin[] = [];
-
-  constructor(private readonly cadastro: CadastroService) {}
+  constructor(
+    private readonly cadastro: CadastroService,
+    @InjectRepository(Checkin)
+    private readonly checkins: Repository<Checkin>,
+  ) {}
 
   async criar(cpfInformado: string): Promise<Checkin> {
     const cpf = cpfInformado.replace(/\D/g, '');
@@ -24,27 +21,29 @@ export class CheckinService {
 
     const paciente = await this.cadastro.buscarPorCpf(cpf);
 
-    const checkin: Checkin = {
-      id: randomUUID(),
+    const checkin = this.checkins.create({
       cpf,
       nome: paciente.nome,
-      chegadaEm: new Date().toISOString(),
-    };
+    });
 
-    this.fila.push(checkin);
-    return checkin;
+    return this.checkins.save(checkin);
   }
 
-  listarDoDia(): Checkin[] {
-    const hoje = diaEmSaoPaulo(new Date());
+  listarDoDia(): Promise<Checkin[]> {
+    const inicio = inicioDoDiaEmSaoPaulo();
+    const fim = new Date(inicio.getTime() + 24 * 60 * 60 * 1000);
 
-    return this.fila.filter(
-      (item) => diaEmSaoPaulo(new Date(item.chegadaEm)) === hoje,
-    );
+    return this.checkins.find({
+      where: { chegadaEm: Between(inicio, fim) },
+      order: { chegadaEm: 'ASC' },
+    });
   }
 }
 
-// en-CA devolve a data como aaaa-mm-dd
-function diaEmSaoPaulo(data: Date): string {
-  return data.toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
+// São Paulo fica em UTC-3 o ano inteiro.
+function inicioDoDiaEmSaoPaulo(agora = new Date()): Date {
+  const dia = agora.toLocaleDateString('en-CA', {
+    timeZone: 'America/Sao_Paulo',
+  });
+  return new Date(`${dia}T00:00:00-03:00`);
 }
